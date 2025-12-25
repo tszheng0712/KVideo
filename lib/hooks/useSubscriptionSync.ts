@@ -1,5 +1,5 @@
 import { useEffect, useRef } from 'react';
-import { settingsStore, parseEnvSubscriptions } from '@/lib/store/settings-store';
+import { settingsStore } from '@/lib/store/settings-store';
 import { fetchSourcesFromUrl, mergeSources } from '@/lib/utils/source-import-utils';
 
 export function useSubscriptionSync() {
@@ -10,52 +10,12 @@ export function useSubscriptionSync() {
         hasSyncedRef.current = true;
 
         const sync = async () => {
-            let settings = settingsStore.getSettings();
-            let anyChanged = false;
-
-            // Fetch runtime config for subscription sources (to support Docker)
-            try {
-                const res = await fetch('/api/config');
-                const config = await res.json();
-                if (config.subscriptionSources) {
-                    const runtimeSubs = parseEnvSubscriptions(config.subscriptionSources);
-
-                    // Merge runtime subscriptions if not already in settings
-                    const currentSubs = [...settings.subscriptions];
-                    let subsAdded = false;
-
-                    runtimeSubs.forEach(rSub => {
-                        const exists = currentSubs.some(s => s.url === rSub.url);
-                        if (!exists) {
-                            currentSubs.push({
-                                ...rSub,
-                                autoRefresh: true
-                            });
-                            subsAdded = true;
-                            anyChanged = true;
-                        }
-                    });
-
-                    if (subsAdded) {
-                        settings = {
-                            ...settings,
-                            subscriptions: currentSubs
-                        };
-                    }
-                }
-            } catch (e) {
-                console.error('Failed to fetch runtime config', e);
-            }
-
+            const settings = settingsStore.getSettings();
             const subscriptions = settings.subscriptions.filter(s => s.autoRefresh !== false);
 
-            if (subscriptions.length === 0) {
-                if (anyChanged) {
-                    settingsStore.saveSettings(settings);
-                }
-                return;
-            }
+            if (subscriptions.length === 0) return;
 
+            let anyChanged = false;
             let currentSources = [...settings.sources];
             let currentAdultSources = [...settings.adultSources];
             let updatedSubscriptions = [...settings.subscriptions];

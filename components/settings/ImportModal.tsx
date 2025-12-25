@@ -21,10 +21,7 @@ interface ImportModalProps {
   onAddSubscription: (sub: SourceSubscription) => Promise<boolean> | boolean;
   onRemoveSubscription: (id: string) => void;
   onRefreshSubscription: (sub: SourceSubscription) => Promise<void>;
-  envSubscriptionsSet?: boolean;
 }
-
-import { ShieldCheck } from 'lucide-react';
 
 export function ImportModal({
   isOpen,
@@ -34,8 +31,7 @@ export function ImportModal({
   subscriptions,
   onAddSubscription,
   onRemoveSubscription,
-  onRefreshSubscription,
-  envSubscriptionsSet
+  onRefreshSubscription
 }: ImportModalProps) {
   const [activeTab, setActiveTab] = useState<'file' | 'link' | 'subscription'>('file');
 
@@ -55,8 +51,8 @@ export function ImportModal({
       {/* Modal */}
       <div
         className={`fixed top-1/2 left-1/2 z-[9999] w-[90%] max-w-md -translate-x-1/2 transition-all duration-300 ${isOpen
-          ? 'opacity-100 -translate-y-1/2 scale-100'
-          : 'opacity-0 -translate-y-[40%] scale-95 pointer-events-none'
+            ? 'opacity-100 -translate-y-1/2 scale-100'
+            : 'opacity-0 -translate-y-[40%] scale-95 pointer-events-none'
           }`}
       >
         <div className="bg-[var(--glass-bg)] backdrop-blur-xl border border-[var(--glass-border)] rounded-[var(--radius-2xl)] shadow-[var(--shadow-md)] p-6 flex flex-col max-h-[85vh]">
@@ -76,20 +72,6 @@ export function ImportModal({
           </div>
 
           <ImportModalTabs activeTab={activeTab} onTabChange={setActiveTab} />
-
-          {envSubscriptionsSet && (
-            <div className="flex items-center gap-3 p-3 mb-4 bg-[color-mix(in_srgb,var(--accent-color)_10%,transparent)] border border-[var(--accent-color)]/30 rounded-[var(--radius-xl)] animate-in fade-in slide-in-from-top-2">
-              <ShieldCheck className="text-[var(--accent-color)] shrink-0" size={20} />
-              <div>
-                <p className="text-xs font-medium text-[var(--text-color)]">
-                  系统预设源已启用
-                </p>
-                <p className="text-[10px] text-[var(--text-color-secondary)] leading-tight">
-                  通过环境变量设置，应用已自动同步最新预设源
-                </p>
-              </div>
-            </div>
-          )}
 
           <div className="flex-1 min-h-0">
             {activeTab === 'file' && (

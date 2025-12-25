@@ -22,37 +22,20 @@ export function useSettingsPage() {
     const [passwordAccess, setPasswordAccess] = useState(false);
     const [accessPasswords, setAccessPasswords] = useState<string[]>([]);
     const [envPasswordSet, setEnvPasswordSet] = useState(false);
-    const [envSubscriptionsSet, setEnvSubscriptionsSet] = useState(false);
 
     useEffect(() => {
-        const updateFromStore = () => {
-            const settings = settingsStore.getSettings();
-            setSources(settings.sources || []);
-            setSubscriptions(settings.subscriptions || []);
-            setSortBy(settings.sortBy);
-            setPasswordAccess(settings.passwordAccess);
-            setAccessPasswords(settings.accessPasswords);
-        };
+        const settings = settingsStore.getSettings();
+        setSources(settings.sources || []);
+        setSubscriptions(settings.subscriptions || []);
+        setSortBy(settings.sortBy);
+        setPasswordAccess(settings.passwordAccess);
+        setAccessPasswords(settings.accessPasswords);
 
-        // Initial load
-        updateFromStore();
-
-        // Subscribe to changes
-        const unsubscribe = settingsStore.subscribe(updateFromStore);
-
-        // Fetch env status
+        // Fetch env password status
         fetch('/api/config')
             .then(res => res.json())
-            .then(data => {
-                setEnvPasswordSet(data.hasEnvPassword);
-                setEnvSubscriptionsSet(!!data.subscriptionSources);
-            })
-            .catch(() => {
-                setEnvPasswordSet(false);
-                setEnvSubscriptionsSet(false);
-            });
-
-        return () => unsubscribe();
+            .then(data => setEnvPasswordSet(data.hasEnvPassword))
+            .catch(() => setEnvPasswordSet(false));
     }, []);
 
     const handleSourcesChange = (newSources: VideoSource[]) => {
@@ -291,7 +274,6 @@ export function useSettingsPage() {
         passwordAccess,
         accessPasswords,
         envPasswordSet,
-        envSubscriptionsSet,
         isAddModalOpen,
         isExportModalOpen,
         isImportModalOpen,

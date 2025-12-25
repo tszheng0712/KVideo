@@ -117,40 +117,29 @@ docker run -d -p 3000:3000 -e ACCESS_PASSWORD=your_secret_password --name kvideo
 - **无法在界面删除**：只能通过修改环境变量更改
 - **与本地密码兼容**：两种密码都可以解锁应用
 
-## 🔄 自动订阅源配置
+## � 自动订阅源配置
 
-可以通过环境变量 `SUBSCRIPTION_SOURCES` 或 `NEXT_PUBLIC_SUBSCRIPTION_SOURCES` 自动配置订阅源。在 Docker 或 Cloudflare 部署中，这些变量在运行时生效，应用启动后会自动同步。
+可以通过环境变量 `NEXT_PUBLIC_SUBSCRIPTION_SOURCES` 自动配置订阅源，应用启动时会自动加载并设置为自动更新。
 
-### 支持格式
+**格式：** JSON 数组字符串，包含 `name` 和 `url` 字段。
 
-1.  **JSON 数组字符串 (推荐)：** 包含 `name` 和 `url` 字段。
-    ```bash
-    SUBSCRIPTION_SOURCES='[{"name":"每日更新源","url":"https://example.com/api.json"}]'
-    ```
+**示例：**
 
-2.  **简单 URL (单个或多个)：** 直接提供 URL，多个 URL 用逗号分隔。应用会自动生成默认名称。
-    ```bash
-    SUBSCRIPTION_SOURCES='https://example.com/api.json,https://backup.com/api.json'
-    ```
-
-### 部署示例
+```bash
+NEXT_PUBLIC_SUBSCRIPTION_SOURCES='[{"name":"每日更新源","url":"https://example.com/api.json"},{"name":"备用源","url":"https://backup.com/api.json"}]'
+```
 
 **Docker 部署：**
 
 ```bash
-docker run -d -p 3000:3000 \
-  -e SUBSCRIPTION_SOURCES='https://example.com/api.json' \
-  --name kvideo kuekhaoyang/kvideo:latest
+docker run -d -p 3000:3000 -e NEXT_PUBLIC_SUBSCRIPTION_SOURCES='[{"name":"MySource","url":"..."}]' --name kvideo kuekhaoyang/kvideo:latest
 ```
 
-**Cloudflare / Vercel 部署：**
+**Vercel 部署：**
 
-在项目设置中添加环境变量：
-- 变量名：`SUBSCRIPTION_SOURCES`
-- 变量值：你的订阅地址或 JSON 字符串
-
-> [!TIP]
-> 现在应用支持**运行时配置**。在 Docker 中修改环境变量并重启容器即可生效，无需重新构建镜像。
+在 Vercel 项目设置中添加环境变量：
+- 变量名：`NEXT_PUBLIC_SUBSCRIPTION_SOURCES`
+- 变量值：`[{"name":"...","url":"..."}]`
 
 ## 📝 自定义源 JSON 格式
 

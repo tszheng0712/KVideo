@@ -1,5 +1,4 @@
 import { useState } from 'react';
-import { ShieldCheck } from 'lucide-react';
 import { SourceManager } from '@/components/settings/SourceManager';
 import type { VideoSource } from '@/lib/types';
 import { DEFAULT_SOURCES } from '@/lib/api/default-sources';
@@ -10,7 +9,6 @@ interface SourceSettingsProps {
     onRestoreDefaults: () => void;
     onAddSource: () => void;
     onEditSource?: (source: VideoSource) => void;
-    envSubscriptionsSet?: boolean;
 }
 
 export function SourceSettings({
@@ -19,7 +17,6 @@ export function SourceSettings({
     onRestoreDefaults,
     onAddSource,
     onEditSource,
-    envSubscriptionsSet,
 }: SourceSettingsProps) {
     const [showAllSources, setShowAllSources] = useState(false);
     const [searchQuery, setSearchQuery] = useState('');
@@ -82,21 +79,6 @@ export function SourceSettings({
             <p className="text-sm text-[var(--text-color-secondary)] mb-6">
                 管理视频来源，调整优先级和启用状态
             </p>
-
-            {/* Env Subscriptions Notice */}
-            {envSubscriptionsSet && (
-                <div className="flex items-center gap-3 p-4 mb-6 bg-[color-mix(in_srgb,var(--accent-color)_10%,transparent)] border border-[var(--accent-color)]/30 rounded-[var(--radius-2xl)] animate-in fade-in slide-in-from-top-2">
-                    <ShieldCheck className="text-[var(--accent-color)] shrink-0" size={24} />
-                    <div>
-                        <p className="text-sm font-medium text-[var(--text-color)]">
-                            系统预设源已启用
-                        </p>
-                        <p className="text-xs text-[var(--text-color-secondary)]">
-                            发现环境变量配置，应用已自动同步最新预设源
-                        </p>
-                    </div>
-                </div>
-            )}
 
             {/* Search Bar */}
             <div className="relative mb-4">

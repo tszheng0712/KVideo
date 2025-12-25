@@ -38,7 +38,6 @@ export default function SettingsPage() {
     handleExport,
     handleImportFile,
     handleImportLink,
-    envSubscriptionsSet,
     subscriptions,
     handleAddSubscription,
     handleRemoveSubscription,
@@ -76,7 +75,6 @@ export default function SettingsPage() {
             setIsAddModalOpen(true);
           }}
           onEditSource={handleEditSource}
-          envSubscriptionsSet={envSubscriptionsSet}
         />
 
         {/* Sort Options */}
@@ -120,7 +118,6 @@ export default function SettingsPage() {
         onAddSubscription={handleAddSubscription}
         onRemoveSubscription={handleRemoveSubscription}
         onRefreshSubscription={handleRefreshSubscription}
-        envSubscriptionsSet={envSubscriptionsSet}
       />
 
       <ConfirmDialog
