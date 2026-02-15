@@ -7,35 +7,38 @@ import { fetchWithTimeout, withRetry } from './http-utils';
 
 /**
  * 透過線上 API 將繁體中文轉換為簡體中文
- * 修正點：根據 API 實際回傳結構，正確提取 data.text
  */
 async function convertToSimplified(text: string): Promise<string> {
-    if (!text) return '';
+    if (!text || !text.trim()) return '';
     
     try {
         const response = await fetch(
-            `https://api.zhconvert.org/convert?converter=Simplified&text=${encodeURIComponent(text)}`,
-            { method: 'GET' }
+            `https://api.zhconvert.org/convert?converter=Simplified&text=${encodeURIComponent(text.trim())}`,
+            { 
+                method: 'GET',
+                headers: { 'Accept': 'application/json' }
+            }
         );
         
-        if (!response.ok) throw new Error('Conversion API failed');
+        if (!response.ok) throw new Error(`API 狀態碼: ${response.status}`);
         
         const result = await response.json();
-        console.log('API 原始回傳:', JSON.stringify(result)); 
-        // 根據你提供的 JSON 格式：result.data.text 才是正確的路徑
-        if (result.code === 0 && result.data && result.data.text) {
-            return result.data.text;
+        
+        // 根據測試結果：提取 result.data.text
+        if (result && result.data && typeof result.data.text === 'string') {
+            const converted = result.data.text.trim();
+            return converted || text; // 確保不是空字串
         }
         
         return text;
     } catch (error) {
-        console.error('簡繁轉換失敗，回退至原始文字:', error);
+        console.error('簡繁轉換失敗:', error);
         return text; 
     }
 }
 
 /**
- * 從單一資源站搜尋影片
+ * 搜尋單一資源站
  */
 async function searchVideosBySource(
     query: string,
@@ -44,35 +47,36 @@ async function searchVideosBySource(
 ): Promise<{ results: VideoItem[]; source: string; responseTime: number }> {
     const startTime = Date.now();
 
+    // 確保 query 是字串且不為空
+    const searchQuery = String(query || '').trim();
+    if (!searchQuery) return { results: [], source: source.id, responseTime: 0 };
+
     const url = new URL(`${source.baseUrl}${source.searchPath}`);
     url.searchParams.set('ac', 'detail');
-    url.searchParams.set('wd', query); 
-    url.searchParams.set('pg', page.toString());
+    url.searchParams.set('wd', searchQuery); 
+    url.searchParams.set('pg', String(page));
 
     try {
         const response = await withRetry(async () => {
             const res = await fetchWithTimeout(url.toString(), {
                 method: 'GET',
                 headers: {
-                    'User-Agent': 'Mozilla/5.0',
+                    // 模擬更真實的瀏覽器頭部，防止影視站阻擋 Cloudflare 請求
+                    'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/121.0.0.0 Safari/537.36',
+                    'Accept': 'application/json, text/plain, */*',
+                    'Referer': source.baseUrl,
                     ...source.headers,
                 },
             });
 
-            if (!res.ok) {
-                throw new Error(`HTTP ${res.status}: ${res.statusText}`);
-            }
-
+            if (!res.ok) throw new Error(`HTTP ${res.status}`);
             return res;
         });
 
         const data: ApiSearchResponse = await response.json();
 
-        if (data.code !== 1 && data.code !== 0) {
-            throw new Error(data.msg || 'Invalid API response');
-        }
-
-        const results: VideoItem[] = (data.list || []).map(item => ({
+        // 確保 list 存在且為陣列
+        const results: VideoItem[] = (Array.isArray(data.list) ? data.list : []).map(item => ({
             ...item,
             source: source.id,
         }));
@@ -83,18 +87,13 @@ async function searchVideosBySource(
             responseTime: Date.now() - startTime,
         };
     } catch (error) {
-        console.error(`資源站 ${source.name} 搜尋失敗:`, error);
-        throw {
-            code: 'SEARCH_FAILED',
-            message: `無法從 ${source.name} 獲取搜尋結果`,
-            source: source.id,
-            retryable: true,
-        };
+        console.error(`資源站 ${source.name} (${source.id}) 搜尋失敗:`, error);
+        return { results: [], source: source.id, responseTime: 0 };
     }
 }
 
 /**
- * 並行從多個資源站搜尋影片
+ * 並行搜尋主函式
  */
 export async function searchVideos(
     query: string,
@@ -102,9 +101,10 @@ export async function searchVideos(
     page: number = 1
 ): Promise<Array<{ results: VideoItem[]; source: string; responseTime?: number; error?: string }>> {
     
-    // 轉換關鍵字
+    // 1. 等待簡繁轉換完成
     const simplifiedQuery = await convertToSimplified(query);
 
+    // 2. 執行並行請求
     const searchPromises = sources.map(async source => {
         try {
             return await searchVideosBySource(simplifiedQuery, source, page);
@@ -112,7 +112,7 @@ export async function searchVideos(
             return {
                 results: [],
                 source: source.id,
-                error: error instanceof Error ? error.message : 'Unknown error',
+                error: error instanceof Error ? error.message : 'Unknown'
             };
         }
     });
