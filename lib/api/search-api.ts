@@ -21,7 +21,7 @@ async function convertToSimplified(text: string): Promise<string> {
         if (!response.ok) throw new Error('Conversion API failed');
         
         const result = await response.json();
-        
+        console.log('API 原始回傳:', JSON.stringify(result)); 
         // 根據你提供的 JSON 格式：result.data.text 才是正確的路徑
         if (result.code === 0 && result.data && result.data.text) {
             return result.data.text;
