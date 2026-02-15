@@ -7,13 +7,12 @@ import { fetchWithTimeout, withRetry } from './http-utils';
 
 /**
  * 透過線上 API 將繁體中文轉換為簡體中文
- * 解決在某些影視站搜尋繁體找不到結果的問題（如：葬送的芙莉蓮）
+ * 修正點：根據 API 實際回傳結構，正確提取 data.text
  */
 async function convertToSimplified(text: string): Promise<string> {
     if (!text) return '';
     
     try {
-        // 使用 zhconvert 免費接口進行轉換
         const response = await fetch(
             `https://api.zhconvert.org/convert?converter=Simplified&text=${encodeURIComponent(text)}`,
             { method: 'GET' }
@@ -21,11 +20,17 @@ async function convertToSimplified(text: string): Promise<string> {
         
         if (!response.ok) throw new Error('Conversion API failed');
         
-        const data = await response.json();
-        return data.data.text || text;
+        const result = await response.json();
+        
+        // 根據你提供的 JSON 格式：result.data.text 才是正確的路徑
+        if (result.code === 0 && result.data && result.data.text) {
+            return result.data.text;
+        }
+        
+        return text;
     } catch (error) {
         console.error('簡繁轉換失敗，回退至原始文字:', error);
-        return text; // 發生錯誤時回傳原文字，確保搜尋功能不中斷
+        return text; 
     }
 }
 
@@ -41,7 +46,7 @@ async function searchVideosBySource(
 
     const url = new URL(`${source.baseUrl}${source.searchPath}`);
     url.searchParams.set('ac', 'detail');
-    url.searchParams.set('wd', query); // 此處接收已轉換好的簡體字串
+    url.searchParams.set('wd', query); 
     url.searchParams.set('pg', page.toString());
 
     try {
@@ -88,7 +93,6 @@ async function searchVideosBySource(
     }
 }
 
-
 /**
  * 並行從多個資源站搜尋影片
  */
@@ -98,12 +102,11 @@ export async function searchVideos(
     page: number = 1
 ): Promise<Array<{ results: VideoItem[]; source: string; responseTime?: number; error?: string }>> {
     
-    // 在並行搜尋開始前，先將關鍵字轉為簡體（只轉換一次以節省資源）
+    // 轉換關鍵字
     const simplifiedQuery = await convertToSimplified(query);
 
     const searchPromises = sources.map(async source => {
         try {
-            // 傳入轉換後的簡體關鍵字
             return await searchVideosBySource(simplifiedQuery, source, page);
         } catch (error) {
             return {
