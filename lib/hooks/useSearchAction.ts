@@ -31,7 +31,6 @@ export function useSearchAction({ state, onCacheUpdate, onUrlUpdate }: UseSearch
 
     const performSearch = useCallback(async (searchQuery: string, sources: any[] = [], sortBy: SortOption = 'default') => {
         if (!searchQuery.trim()) return;
-        alert("準備發送的搜尋詞：" + searchQuery);
         // Resolve sources if not provided
         let targetSources = sources;
         if (!targetSources || targetSources.length === 0) {
