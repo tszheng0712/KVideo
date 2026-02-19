@@ -75,6 +75,10 @@ export default function RootLayout({
 }: Readonly<{
   children: React.ReactNode;
 }>) {
+  if (typeof window !== 'undefined') {
+    const testVar = process.env.ADMIN_PASSWORD;
+    alert(`前端偵測到的變數值為: ${testVar || "未定義 (undefined)"}`);
+  }
   return (
     <html lang="zh-CN" suppressHydrationWarning>
       <head>
