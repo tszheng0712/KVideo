@@ -9,52 +9,57 @@ import { Lock } from 'lucide-react';
 export function PasswordGate({ children, hasAuth: initialHasAuth }: { children: React.ReactNode, hasAuth: boolean }) {
     useSubscriptionSync();
 
+    // 強制初始狀態為鎖定
     const [isLocked, setIsLocked] = useState(true);
+    const [isClient, setIsClient] = useState(false);
+    
     const [password, setPassword] = useState('');
     const [error, setError] = useState(false);
-    const [isClient, setIsClient] = useState(false);
     const [isValidating, setIsValidating] = useState(false);
 
     useEffect(() => {
         let mounted = true;
 
         const init = async () => {
+            // 1. 檢查本地是否有有效 Session
+            const session = getSession();
+            const isAuthenticated = !!session;
+
             try {
-                // 1. 直接向 API 請求，確認目前環境是否需要密碼
+                // 2. 向後端 API 確認目前的驗證需求
                 const res = await fetch('/api/auth');
-                if (!res.ok) throw new Error('Failed to fetch auth config');
                 const data = await res.json();
 
-                // 2. 檢查本地 Session
-                const session = getSession();
-                const isAuthenticated = !!session;
-
                 if (mounted) {
-                    // 以 API 的 hasAuth 為最高準則
-                    // 只要 API 說要驗證，且使用者沒登入，就鎖定
-                    const shouldLock = data.hasAuth && !isAuthenticated;
-                    
-                    setIsLocked(shouldLock);
-                    setIsClient(true);
-
-                    // 同步訂閱源（如果你有設定的話）
+                    // 同步訂閱源
                     if (data.subscriptionSources) {
                         settingsStore.syncEnvSubscriptions(data.subscriptionSources);
                     }
+
+                    // 強制邏輯：只要 data.hasAuth 為 true 且沒登入，就絕對鎖定
+                    // 如果 fetch 失敗，則會跳到 catch 使用更嚴格的鎖定
+                    if (data.hasAuth && !isAuthenticated) {
+                        setIsLocked(true);
+                    } else if (!data.hasAuth) {
+                        setIsLocked(false); // 只有後端明確說不需要密碼時才解鎖
+                    } else {
+                        setIsLocked(false); // 已登入狀態
+                    }
                 }
             } catch (e) {
-                console.error("PasswordGate init failed:", e);
-                // 萬一 API 壞了，退而求其次使用傳進來的 Props
+                console.error("Auth check failed, defaulting to locked:", e);
+                // 萬一 API 壞了，如果沒登入，我們選擇保持鎖定（安全優先）
                 if (mounted) {
-                    setIsLocked(initialHasAuth && !getSession());
-                    setIsClient(true);
+                    setIsLocked(!isAuthenticated);
                 }
+            } finally {
+                if (mounted) setIsClient(true);
             }
         };
 
         init();
         return () => { mounted = false; };
-    }, [initialHasAuth]);
+    }, []); // 移除對 initialHasAuth 的依賴，改由內部 API 決定
 
     const handleUnlock = async (e: React.FormEvent) => {
         e.preventDefault();
@@ -80,7 +85,7 @@ export function PasswordGate({ children, hasAuth: initialHasAuth }: { children: 
                 return;
             }
         } catch {
-            // API 錯誤處理
+            // 處理 API 錯誤
         }
 
         setError(true);
@@ -90,9 +95,9 @@ export function PasswordGate({ children, hasAuth: initialHasAuth }: { children: 
         setTimeout(() => form?.classList.remove('animate-shake'), 500);
     };
 
-    // 關鍵：在確定是否解鎖前，不渲染任何內容（防止內容閃現）
+    // 在確定客戶端狀態前（API 回傳前），顯示空白背景防止內容閃現
     if (!isClient) {
-        return <div className="fixed inset-0 bg-black z-[9999]" />; 
+        return <div className="fixed inset-0 bg-[var(--bg-color)] z-[9999]" />;
     }
 
     if (!isLocked) {
@@ -105,7 +110,7 @@ export function PasswordGate({ children, hasAuth: initialHasAuth }: { children: 
                 <form
                     id="password-form"
                     onSubmit={handleUnlock}
-                    className="bg-[var(--glass-bg)] backdrop-blur-[25px] saturate-[180%] border border-[var(--glass-border)] rounded-[var(--radius-2xl)] p-8 shadow-[var(--shadow-md)] flex flex-col items-center gap-6 transition-all duration-[0.4s]"
+                    className="bg-[var(--glass-bg)] backdrop-blur-[25px] saturate-[180%] border border-[var(--glass-border)] rounded-[var(--radius-2xl)] p-8 shadow-[var(--shadow-md)] flex flex-col items-center gap-6 transition-all duration-[0.4s] cubic-bezier(0.2,0.8,0.2,1)"
                 >
                     <div className="w-16 h-16 rounded-[var(--radius-full)] bg-[var(--accent-color)]/10 flex items-center justify-center text-[var(--accent-color)] mb-2 shadow-[var(--shadow-sm)] border border-[var(--glass-border)]">
                         <Lock size={32} />
@@ -113,7 +118,7 @@ export function PasswordGate({ children, hasAuth: initialHasAuth }: { children: 
 
                     <div className="text-center space-y-2">
                         <h2 className="text-2xl font-bold">訪問受限</h2>
-                        <p className="text-[var(--text-color-secondary)]">請輸入訪問密碼以繼續</p>
+                        <p className="text-[var(--text-color-secondary)]">請輸入密碼以繼續</p>
                     </div>
 
                     <div className="w-full space-y-4">
@@ -129,13 +134,17 @@ export function PasswordGate({ children, hasAuth: initialHasAuth }: { children: 
                                 className={`w-full px-4 py-3 rounded-[var(--radius-2xl)] bg-[var(--glass-bg)] border ${error ? 'border-red-500' : 'border-[var(--glass-border)]'} focus:outline-none focus:border-[var(--accent-color)] text-[var(--text-color)]`}
                                 autoFocus
                             />
-                            {error && <p className="text-sm text-red-500 text-center animate-pulse">密碼錯誤</p>}
+                            {error && (
+                                <p className="text-sm text-red-500 text-center animate-pulse">
+                                    密碼錯誤
+                                </p>
+                            )}
                         </div>
 
                         <button
                             type="submit"
                             disabled={isValidating}
-                            className="w-full py-3 px-4 bg-[var(--accent-color)] text-white font-bold rounded-[var(--radius-2xl)] hover:translate-y-[-2px] transition-all disabled:opacity-50"
+                            className="w-full py-3 px-4 bg-[var(--accent-color)] text-white font-bold rounded-[var(--radius-2xl)] hover:translate-y-[-2px] transition-all duration-200 disabled:opacity-50"
                         >
                             {isValidating ? '驗證中...' : '登錄'}
                         </button>
