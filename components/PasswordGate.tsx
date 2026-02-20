@@ -4,7 +4,7 @@ import { useState, useEffect } from 'react';
 import { getSession, setSession } from '@/lib/store/auth-store';
 import { useSubscriptionSync } from '@/lib/hooks/useSubscriptionSync';
 import { settingsStore } from '@/lib/store/settings-store';
-
+import { Lock } from 'lucide-react';
 export function PasswordGate({ children, hasAuth: initialHasAuth }: { children: React.ReactNode, hasAuth: boolean }) {
     // 保持原本專案的訂閱同步邏輯
     useSubscriptionSync();
