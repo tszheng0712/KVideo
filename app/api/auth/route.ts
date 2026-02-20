@@ -18,8 +18,6 @@ const ACCOUNTS = process.env.ACCOUNTS || '';
 const PERSIST_SESSION = process.env.PERSIST_SESSION !== 'false'; // default true
 const SUBSCRIPTION_SOURCES = process.env.SUBSCRIPTION_SOURCES || process.env.NEXT_PUBLIC_SUBSCRIPTION_SOURCES || '';
 
-// Backward compat: ACCESS_PASSWORD acts as ADMIN_PASSWORD if ADMIN_PASSWORD is not set
-const effectiveAdminPassword = ADMIN_PASSWORD || ACCESS_PASSWORD;
 
 interface AccountEntry {
   password: string;
