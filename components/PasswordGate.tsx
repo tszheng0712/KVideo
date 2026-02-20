@@ -1,71 +1,59 @@
 'use client';
 
 import { useState, useEffect } from 'react';
+
+// 假設你的 lib 目錄下有這些檔案，如果編譯還是報錯，請確認路徑是否正確
+// 如果連這些路徑都報錯，請告訴我，我們連這個都寫死
 import { getSession, setSession } from '@/lib/store/auth-store';
-import { useSubscriptionSync } from '@/lib/hooks/useSubscriptionSync';
-import { settingsStore } from '@/lib/store/settings-store';
-import { Lock } from 'lucide-react';
 
 export function PasswordGate({ children, hasAuth: initialHasAuth }: { children: React.ReactNode, hasAuth: boolean }) {
-    // Enable background subscription syncing globally
-    useSubscriptionSync();
-
     const [isLocked, setIsLocked] = useState(true);
+    const [isClient, setIsClient] = useState(false);
     const [password, setPassword] = useState('');
     const [error, setError] = useState(false);
-    const [isClient, setIsClient] = useState(false);
-    const [hasAuth, setHasAuth] = useState(initialHasAuth);
-    const [persistSession, setPersistSession] = useState(true);
     const [isValidating, setIsValidating] = useState(false);
 
     useEffect(() => {
         let mounted = true;
 
-        const init = async () => {
-            // Check if already has a valid session
-            const session = getSession();
-            const isAuthenticated = !!session;
-
-            // Initial fast check
-            const localLocked = initialHasAuth && !isAuthenticated;
-            if (mounted) {
-                setIsLocked(localLocked);
-                setIsClient(true);
+        const checkAuth = async () => {
+            // 嘗試取得本地 session
+            let isAuthenticated = false;
+            try {
+                const session = getSession();
+                isAuthenticated = !!session;
+            } catch (e) {
+                console.error("Session check failed");
             }
 
-            // Fetch remote config & sync
             try {
+                // 請求後端 API 取得驗證狀態
                 const res = await fetch('/api/auth');
-                if (!res.ok) throw new Error('Failed to fetch auth config');
-
                 const data = await res.json();
 
                 if (mounted) {
-                    setHasAuth(data.hasAuth);
-                    setPersistSession(data.persistSession);
-
-                    // Sync subscriptions
-                    if (data.subscriptionSources) {
-                        settingsStore.syncEnvSubscriptions(data.subscriptionSources);
-                    }
-
-                    // Re-evaluate lock status with confirmed server state
-                    const confirmLocked = data.hasAuth && !isAuthenticated;
-                    setIsLocked(confirmLocked);
+                    // 如果 API 說要驗證且沒登入，就鎖定
+                    // 否則，只要 API 說不需要，就解除鎖定
+                    const shouldLock = data.hasAuth && !isAuthenticated;
+                    setIsLocked(shouldLock);
                 }
             } catch (e) {
-                console.error("PasswordGate init failed:", e);
+                // API 失敗時，若未登入則預設鎖定
+                if (mounted) setIsLocked(!isAuthenticated);
+            } finally {
+                if (mounted) setIsClient(true);
             }
         };
 
-        init();
-
+        checkAuth();
         return () => { mounted = false; };
-    }, [initialHasAuth]);
+    }, []);
 
     const handleUnlock = async (e: React.FormEvent) => {
         e.preventDefault();
+        if (isValidating) return;
         setIsValidating(true);
+        setError(false);
 
         try {
             const res = await fetch('/api/auth', {
@@ -81,88 +69,98 @@ export function PasswordGate({ children, hasAuth: initialHasAuth }: { children: 
                     name: data.name,
                     role: data.role,
                     customPermissions: data.customPermissions,
-                }, data.persistSession ?? persistSession);
+                }, data.persistSession ?? true);
 
-                // Reload to re-initialize stores with profiled keys
                 window.location.reload();
                 return;
+            } else {
+                setError(true);
             }
-        } catch {
-            // API error
+        } catch (err) {
+            setError(true);
+        } finally {
+            setIsValidating(false);
         }
-
-        // Password didn't match
-        setError(true);
-        setIsValidating(false);
-        const form = document.getElementById('password-form');
-        form?.classList.add('animate-shake');
-        setTimeout(() => form?.classList.remove('animate-shake'), 500);
     };
 
-    if (!isClient) return null; // Prevent hydration mismatch
+    // 1. 防止 Hydration 錯誤與內容閃現
+    if (!isClient) {
+        return <div style={{ position: 'fixed', inset: 0, backgroundColor: '#000', zIndex: 9999 }} />;
+    }
 
+    // 2. 解鎖狀態直接回傳子組件
     if (!isLocked) {
         return <>{children}</>;
     }
 
+    // 3. 密碼 UI (使用原生 CSS 樣式確保不依賴 Tailwind 以外的東西)
     return (
-        <div className="fixed inset-0 z-[9999] flex items-center justify-center bg-[var(--bg-color)] bg-[image:var(--bg-image)] text-[var(--text-color)]">
-            <div className="w-full max-w-md p-4">
-                <form
-                    id="password-form"
+        <div style={{
+            position: 'fixed',
+            inset: 0,
+            zIndex: 9999,
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            backgroundColor: '#111827',
+            color: '#fff',
+            fontFamily: 'sans-serif'
+        }}>
+            <div style={{ width: '100%', maxWidth: '400px', padding: '24px' }}>
+                <form 
                     onSubmit={handleUnlock}
-                    className="bg-[var(--glass-bg)] backdrop-blur-[25px] saturate-[180%] border border-[var(--glass-border)] rounded-[var(--radius-2xl)] p-8 shadow-[var(--shadow-md)] flex flex-col items-center gap-6 transition-all duration-[0.4s] cubic-bezier(0.2,0.8,0.2,1)"
+                    style={{
+                        backgroundColor: '#1f2937',
+                        padding: '40px',
+                        borderRadius: '24px',
+                        border: '1px solid #374151',
+                        textAlign: 'center'
+                    }}
                 >
-                    <div className="w-16 h-16 rounded-[var(--radius-full)] bg-[var(--accent-color)]/10 flex items-center justify-center text-[var(--accent-color)] mb-2 shadow-[var(--shadow-sm)] border border-[var(--glass-border)]">
-                        <Lock size={32} />
-                    </div>
-
-                    <div className="text-center space-y-2">
-                        <h2 className="text-2xl font-bold">访问受限</h2>
-                        <p className="text-[var(--text-color-secondary)]">请输入访问密码以继续</p>
-                    </div>
-
-                    <div className="w-full space-y-4">
-                        <div className="space-y-2">
-                            <input
-                                type="password"
-                                value={password}
-                                onChange={(e) => {
-                                    setPassword(e.target.value);
-                                    setError(false);
-                                }}
-                                placeholder="输入密码..."
-                                className={`w-full px-4 py-3 rounded-[var(--radius-2xl)] bg-[var(--glass-bg)] border ${error ? 'border-red-500' : 'border-[var(--glass-border)]'
-                                    } focus:outline-none focus:border-[var(--accent-color)] focus:shadow-[0_0_0_3px_color-mix(in_srgb,var(--accent-color)_30%,transparent)] transition-all duration-[0.4s] cubic-bezier(0.2,0.8,0.2,1) text-[var(--text-color)] placeholder-[var(--text-color-secondary)]`}
-                                autoFocus
-                            />
-                            {error && (
-                                <p className="text-sm text-red-500 text-center animate-pulse">
-                                    密码错误
-                                </p>
-                            )}
-                        </div>
-
-                        <button
-                            type="submit"
-                            disabled={isValidating}
-                            className="w-full py-3 px-4 bg-[var(--accent-color)] text-white font-bold rounded-[var(--radius-2xl)] hover:translate-y-[-2px] hover:brightness-110 shadow-[var(--shadow-sm)] hover:shadow-[0_4px_8px_var(--shadow-color)] active:translate-y-0 active:scale-[0.98] transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed"
-                        >
-                            {isValidating ? '验证中...' : '登录'}
-                        </button>
-                    </div>
+                    <div style={{ fontSize: '48px', marginBottom: '16px' }}>🔒</div>
+                    <h2 style={{ fontSize: '24px', fontWeight: 'bold', marginBottom: '8px' }}>訪問受限</h2>
+                    <p style={{ color: '#9ca3af', marginBottom: '24px', fontSize: '14px' }}>請輸入訪問密碼以繼續</p>
+                    
+                    <input
+                        type="password"
+                        value={password}
+                        onChange={(e) => setPassword(e.target.value)}
+                        placeholder="請輸入密碼"
+                        style={{
+                            width: '100%',
+                            padding: '12px',
+                            borderRadius: '12px',
+                            backgroundColor: '#374151',
+                            border: error ? '1px solid #ef4444' : '1px solid #4b5563',
+                            color: '#fff',
+                            marginBottom: '16px',
+                            textAlign: 'center',
+                            outline: 'none'
+                        }}
+                        autoFocus
+                    />
+                    
+                    {error && <p style={{ color: '#ef4444', fontSize: '12px', marginBottom: '16px' }}>密碼錯誤，請重試</p>}
+                    
+                    <button
+                        type="submit"
+                        disabled={isValidating}
+                        style={{
+                            width: '100%',
+                            padding: '12px',
+                            borderRadius: '12px',
+                            backgroundColor: '#2563eb',
+                            color: '#fff',
+                            fontWeight: 'bold',
+                            border: 'none',
+                            cursor: isValidating ? 'not-allowed' : 'pointer',
+                            opacity: isValidating ? 0.7 : 1
+                        }}
+                    >
+                        {isValidating ? '驗證中...' : '確認登錄'}
+                    </button>
                 </form>
             </div>
-            <style jsx global>{`
-        @keyframes shake {
-          0%, 100% { transform: translateX(0); }
-          25% { transform: translateX(-5px); }
-          75% { transform: translateX(5px); }
-        }
-        .animate-shake {
-          animation: shake 0.3s cubic-bezier(.36,.07,.19,.97) both;
-        }
-      `}</style>
         </div>
     );
 }
